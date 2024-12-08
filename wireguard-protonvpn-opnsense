@@ -1,0 +1,320 @@
+**************************************************
+WIREGUARD, PROTON VPN, AND OPNSENSE
+**************************************************
+==================================================
+PREFACE
+==================================================
+This document describes how to establish a VPN tunnel between an OPNsense router and Proton VPN server, using WireGuard.
+
+Establishing a VPN between OPNsense and Proton VPN, using WireGuard, ensures the confidentiality of all data passing through the secure tunnel between the two endpoints. Using Proton VPN and relying on its no-logs policy protects online privacy and anonymity.
+
+A Virtual Private Network (VPN) is a broad term for technologies and services used to establish a secure connection, or tunnel, between two endpoints. It encompasses the hardware, software, and communication protocols used to establish the secure connection. A VPN uses encryption to ensure the confidentiality of data between the endpoints. Two comparable communication protocols that are the foundation of many VPNs are IPsec and OpenVPN.
+
+WireGuard is a modern open-source communication protocol that aims to be faster, simpler, leaner, and more performant than comparable protocols. WireGuard securely encapsulates IP packets over UDP and uses Cryptokey Routing to route network traffic based on the public keys of connected peers and the allowed source IP addresses associated with those public keys. Cryptokey Routing provides a secure and streamlined way to authenticate and manage connections within a WireGuard network. WireGuard does not follow a client-server model; although endpoints may sometimes be referred to as a client or a server, each endpoint is a peer.
+
+Proton VPN is a commercial VPN service from the same company behind Proton Mail. Proton VPN can be used with OpenVPN, IKEv2, or WireGuard protocols with AES-256 encryption. The company is located in Switzerland and the VPN service has a no-logs policy that has been independently audited.
+
+OPNsense is an open-source firewall and routing platform based on FreeBSD. OPNsense offers many of the same features as expensive commercial firewalls such as: stateful packet inspection, intrusion detection and prevention, and virtual private networking.
+
+--------------------------------------------------
+PREREQUISITES
+--------------------------------------------------
+Proton VPN account
+OPNsense router with WireGuard plugin and a configured connection to the internet
+
+NOTE:	A Proton VPN paid plan was used for this configuration
+	OPNsense 24.7.9_1 was used for this configuration
+
+--------------------------------------------------
+TERMINOLOGY
+--------------------------------------------------
+endpoint
+	Refers to a host connected to a network
+
+endpoint interface
+	Refers to the endpoint network interface
+
+peer
+	Refers to an endpoint connected to another endpoint through a WireGuard VPN
+
+peer interface
+	Refers to the peer network interface that connects the peer to the WireGuard VPN
+	This is a virtual interface that communicates through the endpoint interface
+
+==================================================
+WIREGUARD
+==================================================
+--------------------------------------------------
+BASIC WIREGUARD CONFIGURATION REQUIREMENTS
+--------------------------------------------------
+A basic peer-to-peer WireGuard configuration between two endpoints requires the following to be defined:
+	Private/public keypairs for each peer
+		Each peer interface will be assigned a unique private key and each peer needs to know the public key of the other peer interface
+	Private IP subnet to use for the VPN connection
+		Each peer interface will be assigned a unique IP address from the private IP subnet used for the VPN connection
+	Endpoint IP address and port
+		At least one peer needs to know the IP address and port of the other peer's endpoint interface to route VPN traffic to
+		Where the endpoint IP address is defined depends on how the endpoints will be configured
+		There are three common WireGuard configurations for an endpoint:
+			Site-to-site (endpoint IP addresses and ports are defined on both peers)
+			Server endpoint (no endpoint IP address and port defined on this peer)
+			Client endpoint (server endpoint IP address and port defined on this peer)
+	Allowed IPs
+		Each endpoint will need to know what IP addresses are allowed to be routed from the other peer
+		Specifying 0.0.0.0/0 allows any IP address to be routed from the other peer
+
+==================================================
+PROTON VPN
+==================================================
+--------------------------------------------------
+PROTON VPN CONFIGURATION WITH WIREGUARD
+--------------------------------------------------
+Follow the steps below to download a WireGuard configuration file from Proton VPN.
+
+	Log in to your Proton VPN account
+	Navigate to Downloads - WireGuard Configuration
+	Enter a name for the configuration
+	Select router as the platform
+	Select the VPN options
+	Select a server to connect to
+		A server will be recommended to you but you can select a specific one
+	A dialog window will open with the generated Proton VPN WireGuard configuration
+		You can copy and paste the configuration or download a configuration file
+
+		NOTE:	This is the only time you will see the generated Private Key for your peer
+			A copy of the configuration will be available in your Proton VPN account but without the Private Key
+			Make a copy of the Private Key and keep it secure
+
+The WireGuard configuration file should be similar to the one below:
+	[Interface]							- Proton VPN settings for your peer
+	# My ProtonVPN Wireguard config					- Configuration name
+	# Bouncing = 5							- Proton VPN option
+	# NetShield = 1							- Proton VPN option
+	# Moderate NAT = off						- Proton VPN option
+	# NAT-PMP (Port Forwarding) = off				- Proton VPN option
+	# VPN Accelerator = on						- Proton VPN option
+	PrivateKey = 4F5aFeoVRgB/6pXYjPzy+pm/nv8U7ZO/jA1vYLUiym8=	- Private Key that Proton VPN generated for your peer
+	Address = 10.2.0.2/32						- Peer interface IP address in CIDR notation that Proton VPN has configured for your peer
+	DNS = 10.2.0.1							- DNS/gateway IP address that Proton VPN has configured for your peer
+
+	[Peer]								- Proton VPN settings for their peer
+	# US-CA#16							- Proton VPN server that you will connect to
+	PublicKey = /ZGLB/ha+PGL0WcAKVlVj81ZoIIh6VndO9s4AF+2EUw=	- Public Key that Proton VPN generated for their peer
+	AllowedIPs = 0.0.0.0/0						- IP address/es allowed to be received by your peer from their peer
+	Endpoint = 149.224.80.31:51820					- Endpoint interface IP address and port that Proton VPN has configured for their peer
+
+	NOTE:	The Proton VPN options may or may not be supported depending on the platform
+		The DNS/gateway IP address provided by Proton VPN may or may not be required for your WireGuard configuration
+
+==================================================
+OPNSENSE ROUTER
+==================================================
+--------------------------------------------------
+OPNSENSE VPN CONFIGURATION USING PROTON VPN 
+SERVICE AND WIREGUARD PROTOCOL
+--------------------------------------------------
+This procedure will configure OPNsense and Proton VPN as WireGuard VPN peers and allow internet traffic to be routed through the secure tunnel.
+
+	Generate the WireGuard configuration file
+
+	Derive the public key for the OPNsense peer from the private key in the WireGuard configuration file from Proton VPN
+		Connect to the OPNsense router as root using SSH
+		Enter 8 to access a shell
+		Use the wg command to derive the public key
+			# echo <private key> | wg pubkey
+		Make note of the public key for later
+
+	Log in to the OPNsense web interface
+
+	Configure the OPNsense WireGuard instance
+		Navigate to VPN - WireGuard - Instances
+		Click + to add an instance
+
+		ATTENTION:	Enable advanced mode
+
+		Configure the following:
+			Enabled: Checked
+			Name: Enter a name for this peer
+			Public Key: Enter the public key derived from the PrivateKey in the configuration file
+			Private Key: Enter the PrivateKey from the configuration file
+			Listen Port: Enter any port number starting with 51820 or higher
+			MTU: Enter 1420
+
+			NOTE: This value needs to be 80 bytes shorter than the normal MTU but the default is 1420
+
+			DNS servers: Enter the DNS IP address from the configuration file
+			Tunnel address: Enter the Address IP address in CIDR format from the configuration file
+			Peers: Nothing selected
+
+			NOTE:	This field will update automatically after the other peer is configured
+
+			Disable routes: Check to disable the automatic creation of routes that may force all traffic through the VPN tunnel
+
+			NOTE:	This is recommended to employ better control of routing to the VPN tunnel by manually configuring OPNsense firewall and NAT rules
+
+			Gateway: Enter the DNS IP address from the configuration file
+		Click Save
+		Click Apply
+
+	Configure the OPNsense WireGuard peer (Proton VPN peer interface)
+		Navigate to VPN - WireGuard - Peers
+		Click + to add a peer
+		Configure the following:
+			Enabled: Checked
+			Name: Enter a name for this peer
+			Public Key: Enter the PublicKey from the configuration file
+			Allowed IPs: Enter the AllowedIPs from the configuration file
+			Endpoint address: Enter only the Endpoint IP address from the configuration file
+			Endpoint port: Enter only the Endpoint port number from the configuration file
+			Instances: Select the WireGuard instance name that was configured earlier
+			Keepalive interval: Enter 25
+
+			NOTE:	This value represents the interval in seconds to send a keepalive packet to the other peer
+
+		Click Save
+		Click Apply
+
+	Enable WireGuard
+		Navigate to VPN - WireGuard - Instances
+		Check the Enable WireGuard box
+		Click Apply
+
+	Verify that WireGuard is connecting
+		Navigate to VPN - WireGuard - Status
+		Confirm that the WireGuard instance status is up
+		Confirm that the WireGuard peer Handshake time is within the last couple minutes
+		Confirm that the WireGuard peer is sending and receiving data
+
+	Create a WireGuard interface
+		Navigate to Interfaces - Assignments
+		Select the WireGuard instance from the Device dropdown
+		Enter a short descriptive name in the Description field
+		Click Add
+		Click Save
+
+	Configure the WireGuard interface
+		Navigate to Interfaces - Assignments - WireGuard interface
+		Configure the following:
+			Basic configuration
+				Enable: Enable Interface, check
+				Lock: Prevent interface removal, check
+			Generic configuration
+				IPv4 Configuration Type: None
+				IPv6 Configuration Type: None
+		Click Save
+		Click Apply changes
+
+	Restart WireGuard
+		Navigate to Lobby - Dashboard
+		Under Services, locate WireGuard instance and restart it
+
+	Create a WireGuard gateway
+		Navigate to System - Gateways - Configuration
+		Click + to add a gateway
+		Configure the following:
+			Name: Enter a name for the gateway
+			Description: Enter a description for the gateway
+			Interface: Select the WireGuard interface
+			Address Family: IPv4
+			IP address: Enter the DNS IP address from the configuration file
+
+			NOTE:	This setting should match the IP address of the WireGuard instance gateway configured earlier
+
+			Upstream Gateway: Not checked
+			Far Gateway: Check
+			Disable Gateway Monitoring: Uncheck
+			Monitor IP: Enter only the Endpoint IP address from the configuration file
+
+			NOTE:	The Monitor IP is an arbritrary external IP address that OPNsense will ping to monitor the status of the VPN tunnel
+				It is recommended to use the IP address of the endpoint interface of the other peer but you can use other IP addresses such as 1.1.1.1 or 8.8.8.8
+				If OPNsense cannot ping the Monitor IP address the gateway status will be Offline
+
+		Click Save
+		Click Apply changes
+
+	Create an Alias for private networks as defined in RFC 1918
+		This alias will make it easier to configure firewall rules
+		Navigate to Firewall - Aliases
+		Click + to add an alias
+		Configure the following:
+			Enabled: Checked
+			Name: Enter a name for the alias
+			Type: Select Network(s)
+			Content: Enter each of the following
+					0.0.0.0/8
+					172.16.0.0/12
+					192.168.0.0/16
+			Description: Enter a description for the alias
+		Click Save
+		Click Apply
+
+	Create an Alias for hosts that will use the WireGuard gateway
+		This alias will make it easier to configure firewall rules
+		Navigate to Firewall - Aliases
+		Click + to add an alias
+		Configure the following:
+			Enabled: Checked
+			Name: Enter a name for the alias
+			Type: Host(s)
+			Content: Enter IP addresses or host names for hosts that will use the WireGuard gateway
+			Description: Enter a description for the alias
+		Click Save
+		Click Apply
+
+	Create a firewall rule to allow network traffic from aliased hosts through the firewall to the WireGuard gateway
+		Navigate to Firewall - Rules - Select the interface to create the firewall rule for
+		Click + to add a firewall rule
+		Configure the following:
+			Edit Firewall rule
+				Action: Pass
+				Quick: Apply the action immediately on match, checked
+				Interface: Accept the default
+				Direction: in
+				TCP/IP Version: IPv4
+				Protocol: any
+				Source: Enter the name of the alias you created for hosts that will use the WireGuard gateway
+				Destination/Invert: Check
+				Destination: Enter the name of the alias you created for private networks as defined in RFC 1918
+				Description: Enter a decription for this firewall rule
+				Schedule: none
+				Gateway: Select the Wireguard gateway
+		Click Save
+		Click Apply changes
+
+		NOTE:	Firewall rules are processed from top to bottom
+			Make sure that this rule that allows hosts to use the WireGuard gateway is at the top
+
+	Create an outbound NAT rule for aliased hosts to use with the WireGuard gateway
+		Navigate to Firewall - NAT - Outbound
+		Set Mode to Hybrid outbound NAT rule generation 
+		Click Save
+		Click + to add a manual rule
+		Configure the following:
+			Interface: Select the WireGuard interface 
+			TCP/IP Version: IPv4
+			Protocol: any
+			Source address: Enter the name of the alias you created for hosts that will use the WireGuard gateway
+			Source port: any
+			Destination address: any
+			Destination port: any
+			Translation/target: Interface address
+			Static port: Not checked
+			Pool Options: Default
+			Description: Enter a decription for this NAT rule
+		Click Save
+		Click Apply changes
+
+	Verify Configurations
+		Verify WireGuard Configuration
+			Navigate to VPN - WireGuard - Status
+			Confirm that the WireGuard instance Status is up
+			Confirm that the WireGuard peer Handshake time is within the last couple minutes
+			Confirm that the WireGuard peer is sending and receiving data
+		Verify WireGuard Gateway
+			Navigate to System - Gateways - Configurations
+			Confirm that WireGuard gateway status is Online
+		Verify WireGuard IP Adddress
+			Open a internet browser to https://ip.me/ on a network host allowed to use the WireGuard gateway
+			Confirm that the IP address shown is in the same range as the endpoint IP address from the configuration file
+			Open a internet browser to https://ip.me/ on a network host not allowed to use the WireGuard gateway
+			Confirm that the IP address shown is in the same range as the ISP IP address
