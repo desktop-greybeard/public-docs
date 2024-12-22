@@ -1,0 +1,176 @@
+**************************************************
+SPLUNK FREE - SPLUNK ENTERPRISE AND SPLUNK 
+UNIVERSAL FORWARDER
+**************************************************
+==================================================
+PREFACE
+==================================================
+This document describes how to install the Splunk Free versions of Splunk Enterprise and the Splunk Universal Forwarder on separate servers running Rocky Linux.
+
+Splunk Enterprise is a software platform that can be used to search, analyze, and visualize data gathered from components of an IT infrastructure.
+
+The Splunk Forwarder collects data on a target server and forwards it to the server running Splunk Enterprise for indexing and consolidation.
+
+The major limitations of the Splunk Free versions are the license volume restriction and removed features.
+
+--------------------------------------------------
+PREREQUISITES
+--------------------------------------------------
+Splunk account
+Rocky Linux server with an internet connection where Splunk Enterprise will be installed
+Rocky Linux server with an internet connection where the Splunk Universal Forwarder will be installed
+
+NOTE:	Rocky Linux 8.10 minimal installation was used for both servers
+	Version 9.4.0 was used for both Splunk Enterprise and the Splunk Universal Forwarder
+
+ATTENTION:	Retrieve the wget link for the .RPM file for Splunk Enterprise and the Splunk Universal Forwarder by logging in to your Splunk account
+		
+--------------------------------------------------
+TERMINOLOGY
+--------------------------------------------------
+Splunk server
+	Refers to the server where Splunk Enterprise is installed
+
+target server
+	Refers to the server where the Splunk Universal Forwarder is installed
+
+==================================================
+SPLUNK ENTERPRISE
+==================================================
+Follow the steps below to update the operating system packages and dependencies on the Splunk server.
+
+	Log in to the Splunk server as root
+	Update the operating system packages and dependencies
+		# dnf upgrade
+
+		NOTE:	Monitor the progress of the update and make sure that the update completes
+
+Follow the steps below to retrieve the Splunk Enterprise RPM file.
+
+	If necessary install wget
+		# dnf install wget
+	Use wget to download the RPM file to the current directory
+		# wget -O splunk-9.4.0-6b4ebe426ca6.x86_64.rpm "https://download.splunk.com/products/splunk/releases/9.4.0/linux/splunk-9.4.0-6b4ebe426ca6.x86_64.rpm"
+
+Follow the steps below to install Splunk Enterprise
+
+	NOTE:	Installing Splunk Enterprise using the RPM file will install software to /opt/splunk/ directory by default
+
+	Use the rpm command to install the Splunk Enterprise package
+		# rpm -i splunk-9.4.0-6b4ebe426ca6.x86_64.rpm
+
+		NOTE:	Monitor the progress of the install and make sure that it completes
+			The Splunk Enterprise installation will automatically create a user account named splunk
+
+	Change ownership of the default Splunk Enterprise installation folder to the splunk user
+		# chown -R splunk:splunk /opt/splunk
+	Configure the server firewall to allow access to the following Splunk ports
+		# firewall-cmd --permanent --zone=public --add-port=8000/tcp
+		# firewall-cmd --permanent --zone=public --add-port=8089/tcp
+		# firewall-cmd --permanent --zone=public --add-port=9997/tcp
+		# firewall-cmd --reload
+	Switch to the splunk user account
+		# su - splunk
+	Start Splunk
+		$ cd /opt/splunk/bin
+		$ ./splunk start --accept-license
+		
+		ATTENTION:	You will be prompted to enter an administrator username then enter and confirm a password
+
+	Log out of the splunk user account and return to the root login
+		$ exit
+	Configure Splunk to start on boot
+		# cd /opt/splunk/bin
+		# ./splunk enable boot-start -user splunk
+	Reboot the server
+		# reboot
+	Log in to the Splunk web interface
+		Connect to the Splunk web interface from a browser at http://<IP address>:8000
+		Log in with the Splunk Enterprise administrator username and password set earlier.
+	Configure Splunk to receive data
+		Navigate to Settings - Forwarding and Receiving
+		Under Receive data click Add new
+		Set Listen on this port to 9997
+		Click Save
+
+==================================================
+SPLUNK UNIVERSAL FORWARDER
+==================================================
+Follow the steps below to update the operating system packages and dependencies on the target server.
+
+	Log in to the target server as root
+	Update the operating system packages and dependencies
+		# dnf upgrade
+
+		NOTE:	Monitor the progress of the update and make sure that it completes
+
+Follow the steps below to retrieve the Splunk Universal Forwarder RPM file.
+
+	If necessary install wget
+		# dnf install wget
+	Use wget to download the RPM file to the current directory
+		# wget -O splunkforwarder-9.4.0-6b4ebe426ca6.x86_64.rpm "https://download.splunk.com/products/universalforwarder/releases/9.4.0/linux/splunkforwarder-9.4.0-6b4ebe426ca6.x86_64.rpm"
+
+Follow the steps below to install the Splunk Universal Forwarder
+
+	NOTE:	Installing the Splunk Universal Forwarder using the RPM file will install software to /opt/splunkforwarder/ directory by default
+
+	Use the rpm command to install the Splunk Universal Forwarder package
+		# rpm -i splunkforwarder-9.4.0-6b4ebe426ca6.x86_64.rpm
+
+		NOTE:	The Splunk Universal Forwarder installation will automatically create a user account named splunkfwd
+
+	Change ownership of the default Splunk Universal Forwarder installation folder to splunkfwd user
+		# chown -R splunkfwd:splunkfwd /opt/splunkforwarder
+	Switch to the splunkfwd user account
+		# su - splunkfwd
+	Start the Splunk Universal Forwarder
+		$ cd /opt/splunkforwarder/bin
+		$ ./splunk start --accept-license
+
+		ATTENTION:	You will be prompted to enter an administrator username then enter and confirm a password
+				This account is different than the one created during the Splunk Enterprise install
+
+	Stop the Splunk Universal Forwarder
+		$ ./splunk stop
+	Log out of the splunkfwd user account and return to the root login
+		$ exit
+	Configure the Splunk Universal Forwarder to start on boot
+		# cd /opt/splunkforwarder/bin/
+		# ./splunk enable boot-start -user splunkfwd
+	Reboot the server
+		# reboot
+	Log back in to the target server as root
+	Switch to the splunkfwd account
+		# su - splunkfwd
+	Check the status of the Splunk Universal Forwarder services
+		$ cd /opt/splunkforwarder/bin
+		$ ./splunk status
+
+		ATTENTION:	splunkd and the splunk helpers should be running
+
+	Add the IP address of the Splunk server to the forwarder
+		$ ./splunk add forward-server <Splunk server IP address>:9997
+
+		NOTE:	When prompted for a Splunk username and password use the administrator username and password set for the Splunk Universal Forwarder
+
+	Add a log file to be monitored
+		$ ./splunk add monitor -source <path to file to be monitored> 
+
+		NOTE:	For test purposes you can use the dnf.log file located at /var/log/dnf.log
+
+	Log out of the splunkfwd account and return to the root login
+		$ exit
+	Reboot the server
+		# reboot
+
+----------------------------------------
+ CONFIRM FORWARDING 
+----------------------------------------
+From the Splunk web interface
+	Navigate to Search & Reporting
+	Click Data Summary
+	In the Data Summary dialog box click the host name of the target server
+
+	ATTENTION:	The Search page should populate with the content of the dnf.log file from the target server
+
