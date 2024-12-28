@@ -1,6 +1,6 @@
 **************************************************
-SPLUNK FREE - SPLUNK ENTERPRISE AND SPLUNK 
-UNIVERSAL FORWARDER
+SPLUNK FREE - SPLUNK ENTERPRISE, SPLUNK 
+UNIVERSAL FORWARDER, and BOTS Dataset
 **************************************************
 ==================================================
 PREFACE
@@ -13,6 +13,8 @@ The Splunk Forwarder collects data on a target server and forwards it to the ser
 
 The major limitations of the Splunk Free versions are the license volume restriction and removed features.
 
+Boss of the SOC (BOTS) is a free sample security dataset that can be used to practice creating search queries on the Splunk server.
+
 --------------------------------------------------
 PREREQUISITES
 --------------------------------------------------
@@ -21,7 +23,10 @@ Rocky Linux server with an internet connection where Splunk Enterprise will be i
 Rocky Linux server with an internet connection where the Splunk Universal Forwarder will be installed
 
 NOTE:	Rocky Linux 8.10 minimal installation was used for both servers
+	The Splunk server was created with a 32GB hard drive
+	The target server was created with a 16GB hard drive
 	Version 9.4.0 was used for both Splunk Enterprise and the Splunk Universal Forwarder
+	BOTS v3 dataset was installed on the Splunk server
 
 ATTENTION:	Retrieve the wget link for the .RPM file for Splunk Enterprise and the Splunk Universal Forwarder by logging in to your Splunk account
 		
@@ -174,3 +179,31 @@ From the Splunk web interface
 
 	ATTENTION:	The Search page should populate with the content of the dnf.log file from the target server
 
+==================================================
+Boss of the SOC (BOTS) Dataset Version 3
+==================================================
+Follow the steps below to install the BOTS v3 dataset on the Splunk server.
+
+	Log in to the Splunk server as root
+	If necessary install tar
+		# dnf install tar
+	Use wget to download the BOTS v3 TGZ file to the current directory
+		# wget -O botsv3_data_set.tgz "https://botsdataset.s3.amazonaws.com/botsv3/botsv3_data_set.tgz"
+	Extract the dataset fro hte TGZ file to the /opt/splunk/etc/apps/ folder
+		# tar zxvf botsv3_data_set.tgz -C /opt/splunk/etc/apps/
+	Change ownership of the /opt/splunk/ folder to the splunk user
+		# chown -R splunk:splunk /opt/splunk
+	Reboot the Splunk server
+		# reboot
+	Log in to the Splunk web interface
+		Connect to the Splunk web interface from a browser at http://<IP address>:8000
+		Log in with the Splunk Enterprise administrator username and password set earlier.
+	Verify that the BOTS v3 dataset installed correctly
+		In the Apps pane click Manage
+		In the Filter bar enter bots and click the Search button
+		Confirm that Splunk Boss of the SOC (BOTS) Version 3 Data Set is listed
+	Search the indexer for BOTS v3 data
+		Navigate to Search & Reporting
+		In the Search bar enter the search terms below and then click the Search button
+			index="botsv3" earliest=0
+		Confirm that log events are returned (there should be over 2 million events)
