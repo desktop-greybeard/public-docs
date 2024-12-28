@@ -189,7 +189,7 @@ Follow the steps below to install the BOTS v3 dataset on the Splunk server.
 		# dnf install tar
 	Use wget to download the BOTS v3 TGZ file to the current directory
 		# wget -O botsv3_data_set.tgz "https://botsdataset.s3.amazonaws.com/botsv3/botsv3_data_set.tgz"
-	Extract the dataset fro hte TGZ file to the /opt/splunk/etc/apps/ folder
+	Extract the dataset from the TGZ file to the /opt/splunk/etc/apps/ folder
 		# tar zxvf botsv3_data_set.tgz -C /opt/splunk/etc/apps/
 	Change ownership of the /opt/splunk/ folder to the splunk user
 		# chown -R splunk:splunk /opt/splunk
@@ -197,7 +197,7 @@ Follow the steps below to install the BOTS v3 dataset on the Splunk server.
 		# reboot
 	Log in to the Splunk web interface
 		Connect to the Splunk web interface from a browser at http://<IP address>:8000
-		Log in with the Splunk Enterprise administrator username and password set earlier.
+		Log in with the Splunk Enterprise administrator username and password.
 	Verify that the BOTS v3 dataset installed correctly
 		In the Apps pane click Manage
 		In the Filter bar enter bots and click the Search button
